@@ -1,0 +1,21 @@
+{
+  "name": "bingo-ws-server",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@prisma/client": "latest",
+    "prisma": "latest"
+  },
+  "devDependencies": {
+    "@flydotio/dockerfile": "^0.7.10",
+    "@types/node": "latest",
+    "bun-types": "latest",
+    "vitest": "latest"
+  }
+}
