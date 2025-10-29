@@ -54,17 +54,23 @@ export default function Step1Page() {
     }
   }
 
-  const filteredLocations = state.allLocations.filter((location) => {
-    const matchesSearch = location.name.toLowerCase().includes(search.toLowerCase())
-    const matchesCategory =
-      categoryFilter === 'ALL' || location.category === categoryFilter
-    return matchesSearch && matchesCategory
-  })
+  // Safely filter locations only if data is loaded
+  const filteredLocations = !isLoading && state.allLocations.length > 0
+    ? state.allLocations.filter((location) => {
+        const matchesSearch = location.name.toLowerCase().includes(search.toLowerCase())
+        const matchesCategory =
+          categoryFilter === 'ALL' || location.category === categoryFilter
+        return matchesSearch && matchesCategory
+      })
+    : []
 
-  const categories: string[] = [
-    'ALL',
-    ...Array.from(new Set(state.allLocations.map((l) => l.category).filter((c): c is string => c !== null)))
-  ]
+  // Safely extract categories only if data is loaded
+  const categories: string[] = !isLoading && state.allLocations.length > 0
+    ? [
+        'ALL',
+        ...Array.from(new Set(state.allLocations.map((l) => l.category).filter((c): c is string => c !== null)))
+      ]
+    : ['ALL']
 
   const isLocationSelected = (id: string) => state.selectedLocationIds.includes(id)
 
@@ -160,7 +166,29 @@ export default function Step1Page() {
 
           {/* Location Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredLocations.map((location) => {
+            {isLoading ? (
+              // Loading skeleton
+              Array.from({ length: 8 }).map((_, i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardHeader>
+                    <div className="h-6 bg-neutral-200 rounded w-3/4" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-4 bg-neutral-200 rounded w-1/2 mb-2" />
+                    <div className="h-3 bg-neutral-200 rounded w-full" />
+                  </CardContent>
+                </Card>
+              ))
+            ) : filteredLocations.length === 0 ? (
+              <div className="col-span-full text-center py-12">
+                <p className="body-1 text-tertiary-300">
+                  {state.allLocations.length === 0
+                    ? 'No locations available. Please contact an admin.'
+                    : 'No locations match your filters.'}
+                </p>
+              </div>
+            ) : (
+              filteredLocations.map((location) => {
               const selected = isLocationSelected(location.id)
               const canSelect = !selected && state.selectedLocationIds.length < 24
 
@@ -211,7 +239,8 @@ export default function Step1Page() {
                   </CardContent>
                 </Card>
               )
-            })}
+            })
+            )}
           </div>
 
           {/* Footer */}

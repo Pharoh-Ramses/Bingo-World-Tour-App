@@ -64,9 +64,9 @@ export default function Step2Page() {
     return state.allLocations.find((loc) => loc.id === id)
   }
 
-  const unplacedLocations = state.selectedLocationIds.filter(
-    (id) => !state.boardLayout.includes(id)
-  )
+  const unplacedLocations = state.selectedLocationIds.length > 0
+    ? state.selectedLocationIds.filter((id) => !state.boardLayout.includes(id))
+    : []
 
   const placedCount = state.boardLayout.filter((id, idx) => id !== null && idx !== 12).length
 

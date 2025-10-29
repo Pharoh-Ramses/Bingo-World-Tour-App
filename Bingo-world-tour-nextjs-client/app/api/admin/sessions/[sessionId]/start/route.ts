@@ -64,6 +64,28 @@ export async function POST(
       }
     })
 
+    // Trigger WebSocket server to start the game and broadcast to clients
+    try {
+      const wsServerUrl = process.env.WEBSOCKET_SERVER_URL || 'http://localhost:3001'
+      const response = await fetch(`${wsServerUrl}/start-game`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sessionCode: updatedSession.code }),
+      })
+
+      if (!response.ok) {
+        console.error('Failed to notify WebSocket server:', await response.text())
+        // Don't fail the request, game is already started in DB
+      } else {
+        console.log(`Successfully triggered game start for session: ${updatedSession.code}`)
+      }
+    } catch (error) {
+      console.error('Error calling WebSocket server:', error)
+      // Don't fail the request, game is already started in DB
+    }
+
     return NextResponse.json({
       session: {
         id: updatedSession.id,
