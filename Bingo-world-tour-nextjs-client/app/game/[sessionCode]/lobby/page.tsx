@@ -62,19 +62,51 @@ const LobbyPage = () => {
       case 'connected':
         setSession(prev => prev ? { ...prev, status: message.data.status } : null)
         break
-        
+
+      case 'game-started':
+        setSession(prev => prev ? { ...prev, status: 'ACTIVE' } : null)
+        // Redirect to play page when game starts
+        router.push(`/game/${sessionCode}/play`)
+        break
+
       case 'game-paused':
         setSession(prev => prev ? { ...prev, status: 'PAUSED' } : null)
         break
-        
+
       case 'game-resumed':
         setSession(prev => prev ? { ...prev, status: 'ACTIVE' } : null)
         // Redirect to play page when game becomes active
         router.push(`/game/${sessionCode}/play`)
         break
-        
+
       case 'game-ended':
         setSession(prev => prev ? { ...prev, status: 'ENDED' } : null)
+        break
+
+      case 'player-joined':
+        setSession(prev => {
+          if (!prev) return null
+          return {
+            ...prev,
+            players: [...prev.players, {
+              id: message.data.userId,
+              name: message.data.userName || 'Anonymous',
+              isReady: message.data.isReady || false
+            }],
+            playerCount: prev.playerCount + 1
+          }
+        })
+        break
+
+      case 'player-left':
+        setSession(prev => {
+          if (!prev) return null
+          return {
+            ...prev,
+            players: prev.players.filter(p => p.id !== message.data.userId),
+            playerCount: Math.max(0, prev.playerCount - 1)
+          }
+        })
         break
     }
   }, [router, sessionCode])

@@ -48,6 +48,7 @@ const SessionControlPanel = () => {
   const [isPausing, setIsPausing] = useState(false)
   const [isEnding, setIsEnding] = useState(false)
   const [wsSessionCode, setWsSessionCode] = useState<string | null>(null)
+  const [startError, setStartError] = useState<string | null>(null)
 
   const fetchSessionData = useCallback(async () => {
     try {
@@ -103,6 +104,32 @@ const SessionControlPanel = () => {
       case 'winner-found':
         console.log('Winner found:', message.data)
         break
+
+      case 'player-joined':
+        setSession(prev => {
+          if (!prev) return null
+          return {
+            ...prev,
+            players: [...prev.players, {
+              id: message.data.userId,
+              name: message.data.userName || 'Anonymous',
+              isReady: message.data.isReady || false
+            }],
+            playerCount: prev.playerCount + 1
+          }
+        })
+        break
+
+      case 'player-left':
+        setSession(prev => {
+          if (!prev) return null
+          return {
+            ...prev,
+            players: prev.players.filter(p => p.id !== message.data.userId),
+            playerCount: Math.max(0, prev.playerCount - 1)
+          }
+        })
+        break
     }
   }, [revealedLocations.length])
 
@@ -121,16 +148,21 @@ const SessionControlPanel = () => {
 
   const handleStartGame = async () => {
     setIsStarting(true)
+    setStartError(null)
     try {
       const response = await fetch(`/api/admin/sessions/${sessionId}/start`, {
         method: 'POST'
       })
-      
+
       if (response.ok) {
         await fetchSessionData()
+      } else {
+        const data = await response.json()
+        setStartError(data.error || 'Failed to start game')
       }
     } catch (error) {
       console.error('Failed to start game:', error)
+      setStartError('Failed to start game. Please try again.')
     } finally {
       setIsStarting(false)
     }
@@ -256,6 +288,12 @@ const SessionControlPanel = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {startError && (
+                  <div className="p-4 bg-error-100 border border-error-300 rounded-lg">
+                    <p className="body-2 text-error-600">{startError}</p>
+                  </div>
+                )}
+
                 {session.status === 'WAITING' && (
                   <div className="flex gap-4">
                     <Button

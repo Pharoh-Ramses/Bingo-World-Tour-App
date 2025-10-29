@@ -46,6 +46,15 @@ export async function POST(
       )
     }
 
+    // Validate that locations exist in database
+    const locationCount = await prisma.location.count()
+    if (locationCount === 0) {
+      return NextResponse.json(
+        { error: 'Cannot start game: No locations available. Please add locations first.' },
+        { status: 400 }
+      )
+    }
+
     // Update session status to ACTIVE
     const updatedSession = await prisma.gameSession.update({
       where: { id: sessionId },

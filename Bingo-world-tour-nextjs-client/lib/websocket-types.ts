@@ -30,14 +30,24 @@ export interface Winner {
   place: number
 }
 
+export interface PlayerInfo {
+  userId: string
+  userName?: string
+  isReady?: boolean
+  joinedAt: string
+}
+
 // Incoming messages from WebSocket server
-export type WSIncomingMessage = 
+export type WSIncomingMessage =
   | { type: 'connected', data: GameSession }
+  | { type: 'game-started' }
   | { type: 'location-revealed', data: Location }
   | { type: 'game-paused' }
   | { type: 'game-resumed' }
   | { type: 'game-ended' }
   | { type: 'winner-found', data: Winner }
+  | { type: 'player-joined', data: PlayerInfo }
+  | { type: 'player-left', data: { userId: string } }
   | { type: 'error', message: string }
   | { type: 'pong' }
 
