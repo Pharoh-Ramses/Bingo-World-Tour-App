@@ -61,7 +61,10 @@ export default function Step1Page() {
     return matchesSearch && matchesCategory
   })
 
-  const categories = ['ALL', ...Array.from(new Set(state.allLocations.map((l) => l.category).filter(Boolean)))]
+  const categories: string[] = [
+    'ALL',
+    ...Array.from(new Set(state.allLocations.map((l) => l.category).filter((c): c is string => c !== null)))
+  ]
 
   const isLocationSelected = (id: string) => state.selectedLocationIds.includes(id)
 
