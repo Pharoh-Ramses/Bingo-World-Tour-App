@@ -18,6 +18,12 @@ export interface RevealedLocation {
   revealedAt: string
 }
 
+// Payload for live reveal messages from the server
+export interface LocationRevealedPayload extends Location {
+  revealIndex: number
+  revealedAt: string
+}
+
 export interface GameSession {
   id: string
   sessionCode: string
@@ -41,7 +47,7 @@ export interface PlayerInfo {
 export type WSIncomingMessage =
   | { type: 'connected', data: GameSession }
   | { type: 'game-started' }
-  | { type: 'location-revealed', data: Location }
+  | { type: 'location-revealed', data: LocationRevealedPayload }
   | { type: 'game-paused' }
   | { type: 'game-resumed' }
   | { type: 'game-ended' }
