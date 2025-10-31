@@ -31,6 +31,11 @@ export class GameManager {
       const locations = await prisma.location.findMany({ select: { id: true } });
       const allLocationIds = locations.map((l) => l.id);
 
+      // Validate that locations exist
+      if (allLocationIds.length === 0) {
+        throw new Error("Cannot start game: No locations available in database");
+      }
+
       const game: ActiveGame = {
         sessionId: session.id,
         code: session.code,
@@ -46,6 +51,14 @@ export class GameManager {
       // Start auto-reveal timer
       this.startRevealTimer(game);
       this.activeGames.set(code, game);
+
+      // Reveal the first location immediately
+      await this.revealNextLocation(game);
+      console.log(`Revealed initial location for session: ${code}`);
+
+      // Broadcast game-started to all connected clients
+      this.broadcast(game, { type: "game-started" });
+      console.log(`Broadcasted game-started for session: ${code}`);
 
       return game;
     } catch (error) {
@@ -68,7 +81,10 @@ export class GameManager {
 
   async revealNextLocation(game: ActiveGame) {
     try {
+      console.log(`revealNextLocation called for session ${game.code}: currentIndex=${game.currentRevealIndex}, maxReveals=${game.maxReveals}`);
+
       if (game.currentRevealIndex >= game.maxReveals) {
+        console.log(`Max reveals reached for session ${game.code}, ending game`);
         await this.endGame(game.code);
         return;
       }
@@ -84,7 +100,10 @@ export class GameManager {
         (id) => !revealedIds.includes(id),
       );
 
+      console.log(`Session ${game.code}: Total locations=${game.allLocationIds.length}, Revealed=${revealedIds.length}, Unrevealed=${unrevealed.length}`);
+
       if (unrevealed.length === 0) {
+        console.error(`No unrevealed locations available for session ${game.code}. Total locations: ${game.allLocationIds.length}, Revealed: ${revealedIds.length}`);
         await this.endGame(game.code);
         return;
       }
@@ -117,10 +136,29 @@ export class GameManager {
         where: { id: locationId },
       });
 
-      // Broadcast to all clients
+      if (!location) {
+        console.error(`Location not found: ${locationId}`);
+        return;
+      }
+
+      // Get the revealed location record to get the exact revealIndex and revealedAt
+      const revealedLocation = await prisma.revealedLocation.findFirst({
+        where: {
+          sessionId: game.sessionId,
+          locationId: locationId,
+          revealIndex: game.currentRevealIndex,
+        },
+        orderBy: { revealedAt: 'desc' },
+      });
+
+      // Broadcast to all clients with revealIndex and revealedAt
       this.broadcast(game, {
         type: "location-revealed",
-        data: location,
+        data: {
+          ...location,
+          revealIndex: game.currentRevealIndex,
+          revealedAt: revealedLocation?.revealedAt.toISOString() || new Date().toISOString(),
+        },
       });
     } catch (error) {
       console.error("Error revealing next location:", error);
@@ -222,10 +260,28 @@ export class GameManager {
     }
   }
 
-  broadcast(game: ActiveGame, message: any) {
+  broadcast(gameOrCode: ActiveGame | string, message: any) {
+    const game = typeof gameOrCode === 'string'
+      ? this.activeGames.get(gameOrCode)
+      : gameOrCode;
+
+    if (!game) return;
+
     const payload = JSON.stringify(message);
     game.clients.forEach((client) => {
       client.send(payload);
+    });
+  }
+
+  broadcastExcept(code: string, excludeClient: any, message: any) {
+    const game = this.activeGames.get(code);
+    if (!game) return;
+
+    const payload = JSON.stringify(message);
+    game.clients.forEach((client) => {
+      if (client !== excludeClient) {
+        client.send(payload);
+      }
     });
   }
 

@@ -27,6 +27,37 @@ const server = Bun.serve({
       return new Response("OK", { status: 200, headers: corsHeaders });
     }
 
+    // Start game endpoint (called by Next.js API route)
+    if (url.pathname === "/start-game" && req.method === "POST") {
+      try {
+        const body = await req.json();
+        const { sessionCode } = body;
+
+        if (!sessionCode) {
+          return new Response(
+            JSON.stringify({ error: "Session code required" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`HTTP request to start game for session: ${sessionCode}`);
+
+        // Start the game which will broadcast to all connected clients
+        await gameManager.startGame(sessionCode);
+
+        return new Response(
+          JSON.stringify({ success: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error) {
+        console.error("Error starting game via HTTP:", error);
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to start game" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // WebSocket upgrade
     if (url.pathname === "/ws") {
       const code = url.searchParams.get("sessionCode");

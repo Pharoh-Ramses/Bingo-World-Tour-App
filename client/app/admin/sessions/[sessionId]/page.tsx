@@ -68,23 +68,25 @@ const SessionControlPanel = () => {
 
   // WebSocket message handler
   const handleWebSocketMessage = useCallback((message: WSIncomingMessage) => {
+    console.log('Admin page received WebSocket message:', message.type, message)
+    
     switch (message.type) {
       case 'connected':
         // Initialize revealed locations from server data
-        if (message.data.revealedLocations) {
+        if (message.data.revealedLocations && Array.isArray(message.data.revealedLocations)) {
           setRevealedLocations(message.data.revealedLocations)
         }
         setSession(prev => prev ? { ...prev, status: message.data.status } : null)
         break
         
       case 'location-revealed':
-        // Add new revealed location
+        // Add new revealed location (server now includes revealIndex and revealedAt)
         const newRevealedLocation: RevealedLocation = {
-          id: `revealed-${Date.now()}`,
+          id: `revealed-${message.data.id}-${message.data.revealIndex || revealedLocations.length + 1}`,
           locationId: message.data.id,
           locationName: message.data.name,
-          revealIndex: revealedLocations.length + 1,
-          revealedAt: new Date().toISOString()
+          revealIndex: message.data.revealIndex || revealedLocations.length + 1,
+          revealedAt: message.data.revealedAt || new Date().toISOString()
         }
         setRevealedLocations(prev => [...prev, newRevealedLocation])
         break
@@ -106,8 +108,23 @@ const SessionControlPanel = () => {
         break
 
       case 'player-joined':
+        console.log('Admin: Player joined:', message.data)
         setSession(prev => {
           if (!prev) return null
+          // Check if player already exists to avoid duplicates
+          const playerExists = prev.players.some(p => p.id === message.data.userId)
+          if (playerExists) {
+            // Update existing player
+            return {
+              ...prev,
+              players: prev.players.map(p => 
+                p.id === message.data.userId 
+                  ? { ...p, name: message.data.userName || p.name, isReady: message.data.isReady || p.isReady }
+                  : p
+              )
+            }
+          }
+          // Add new player
           return {
             ...prev,
             players: [...prev.players, {
@@ -121,6 +138,7 @@ const SessionControlPanel = () => {
         break
 
       case 'player-left':
+        console.log('Admin: Player left:', message.data)
         setSession(prev => {
           if (!prev) return null
           return {

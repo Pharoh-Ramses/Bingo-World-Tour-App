@@ -43,12 +43,56 @@ export function handleWebSocket(gameManager: GameManager) {
             sessionId: session.id,
             code: session.code,
             status: session.status,
-            revealedLocations: session.revealedLocations.map((r) => r.location),
+            revealedLocations: session.revealedLocations.map((r) => ({
+              id: r.id,
+              locationId: r.locationId,
+              locationName: r.location.name,
+              revealIndex: r.revealIndex,
+              revealedAt: r.revealedAt.toISOString()
+            })),
           },
         };
-        
+
         console.log(`Sending initial message:`, JSON.stringify(initialMessage, null, 2));
         ws.send(JSON.stringify(initialMessage));
+
+        // Broadcast player-joined to all OTHER clients
+        if (userId) {
+          try {
+            // Fetch player board info to get user details and ready status
+            const playerBoard = await prisma.playerBoard.findUnique({
+              where: {
+                userId_sessionId: {
+                  userId: userId,
+                  sessionId: session.id,
+                },
+              },
+              include: {
+                user: true,
+              },
+            });
+
+            const playerInfo = {
+              userId: userId,
+              userName: playerBoard?.user.name || undefined,
+              isReady: playerBoard?.isReady || false,
+              joinedAt: playerBoard?.joinedAt.toISOString() || new Date().toISOString(),
+            };
+
+            // Broadcast to all clients EXCEPT the one that just joined
+            gameManager.broadcastExcept(
+              code,
+              ws,
+              {
+                type: "player-joined",
+                data: playerInfo,
+              }
+            );
+            console.log(`Broadcasted player-joined for userId: ${userId}`);
+          } catch (error) {
+            console.error("Error fetching player info for broadcast:", error);
+          }
+        }
 
         // Start game if not already active
         if (session.status === "ACTIVE" && !gameManager.getGame(code)) {
@@ -122,10 +166,21 @@ export function handleWebSocket(gameManager: GameManager) {
     },
 
     close(ws: ServerWebSocket<WebSocketData>) {
-      const { code } = ws.data;
-      console.log(`WebSocket closed for session: ${code}, code: ${ws.readyState}`);
+      const { code, userId } = ws.data;
+      console.log(`WebSocket closed for session: ${code}, userId: ${userId}`);
+
+      // Remove client from game manager
       gameManager.removeClient(code, ws);
       console.log(`Client disconnected from session ${code}`);
+
+      // Broadcast player-left to all remaining clients
+      if (userId) {
+        gameManager.broadcast(code, {
+          type: "player-left",
+          data: { userId },
+        });
+        console.log(`Broadcasted player-left for userId: ${userId}`);
+      }
     },
 
     error(ws: ServerWebSocket<WebSocketData>, error: Error) {

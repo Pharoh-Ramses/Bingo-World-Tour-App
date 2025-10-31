@@ -89,7 +89,7 @@ const ActiveGamePage = () => {
       const revealedResponse = await fetch(`/api/game/${sessionCode}/revealed`)
       if (revealedResponse.ok) {
         const revealedData = await revealedResponse.json()
-        setRevealedLocations(revealedData)
+        setRevealedLocations(revealedData.revealedLocations || [])
       }
     } catch (error) {
       console.error('Failed to fetch game data:', error)
@@ -104,20 +104,20 @@ const ActiveGamePage = () => {
     switch (message.type) {
       case 'connected':
         // Initialize revealed locations from server data
-        if (message.data.revealedLocations) {
+        if (message.data.revealedLocations && Array.isArray(message.data.revealedLocations)) {
           setRevealedLocations(message.data.revealedLocations)
         }
         setSession(prev => prev ? { ...prev, status: message.data.status } : null)
         break
         
       case 'location-revealed':
-        // Add new revealed location
+        // Add new revealed location (server now includes revealIndex and revealedAt)
         const newRevealedLocation: RevealedLocation = {
-          id: `revealed-${Date.now()}`,
+          id: `revealed-${message.data.id}-${message.data.revealIndex || revealedLocations.length + 1}`,
           locationId: message.data.id,
           locationName: message.data.name,
-          revealIndex: revealedLocations.length + 1,
-          revealedAt: new Date().toISOString()
+          revealIndex: message.data.revealIndex || revealedLocations.length + 1,
+          revealedAt: message.data.revealedAt || new Date().toISOString()
         }
         setRevealedLocations(prev => [...prev, newRevealedLocation])
         break
