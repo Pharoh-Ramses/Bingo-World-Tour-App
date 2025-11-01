@@ -90,10 +90,17 @@ export class GameManager {
       }
 
       // Get revealed location IDs to exclude
-      const revealed = await prisma.revealedLocation.findMany({
-        where: { sessionId: game.sessionId },
-        select: { locationId: true },
-      });
+      let revealed;
+      try {
+        revealed = await prisma.revealedLocation.findMany({
+          where: { sessionId: game.sessionId },
+          select: { locationId: true },
+        });
+      } catch (dbError) {
+        console.error(`Database error fetching revealed locations for session ${game.code}:`, dbError);
+        return; // Don't crash, just skip this reveal
+      }
+
       const revealedIds = revealed.map(r => r.locationId);
 
       const unrevealed = game.allLocationIds.filter(
@@ -116,25 +123,43 @@ export class GameManager {
       game.currentRevealIndex++;
 
       // Save to database
-      await prisma.revealedLocation.create({
-        data: {
-          sessionId: game.sessionId,
-          locationId,
-          revealIndex: game.currentRevealIndex,
-          revealedAt: new Date(),
-        },
-      });
+      try {
+        await prisma.revealedLocation.create({
+          data: {
+            sessionId: game.sessionId,
+            locationId,
+            revealIndex: game.currentRevealIndex,
+            revealedAt: new Date(),
+          },
+        });
+      } catch (dbError) {
+        console.error(`Database error creating revealed location for session ${game.code}:`, dbError);
+        // Rollback the increment
+        game.currentRevealIndex--;
+        return;
+      }
 
       // Update session's currentRevealIndex
-      await prisma.gameSession.update({
-        where: { id: game.sessionId },
-        data: { currentRevealIndex: game.currentRevealIndex },
-      });
+      try {
+        await prisma.gameSession.update({
+          where: { id: game.sessionId },
+          data: { currentRevealIndex: game.currentRevealIndex },
+        });
+      } catch (dbError) {
+        console.error(`Database error updating session for ${game.code}:`, dbError);
+        // Continue anyway - the reveal was created
+      }
 
       // Get location details
-      const location = await prisma.location.findUnique({
-        where: { id: locationId },
-      });
+      let location;
+      try {
+        location = await prisma.location.findUnique({
+          where: { id: locationId },
+        });
+      } catch (dbError) {
+        console.error(`Database error fetching location ${locationId}:`, dbError);
+        return;
+      }
 
       if (!location) {
         console.error(`Location not found: ${locationId}`);
@@ -142,27 +167,38 @@ export class GameManager {
       }
 
       // Get the revealed location record to get the exact revealIndex and revealedAt
-      const revealedLocation = await prisma.revealedLocation.findFirst({
-        where: {
-          sessionId: game.sessionId,
-          locationId: locationId,
-          revealIndex: game.currentRevealIndex,
-        },
-        orderBy: { revealedAt: 'desc' },
-      });
+      let revealedLocation;
+      try {
+        revealedLocation = await prisma.revealedLocation.findFirst({
+          where: {
+            sessionId: game.sessionId,
+            locationId: locationId,
+            revealIndex: game.currentRevealIndex,
+          },
+          orderBy: { revealedAt: 'desc' },
+        });
+      } catch (dbError) {
+        console.error(`Database error fetching revealed location record:`, dbError);
+        // Continue with default values
+      }
 
       // Broadcast to all clients with revealIndex and revealedAt
-      this.broadcast(game, {
-        type: "location-revealed",
-        data: {
-          ...location,
-          revealIndex: game.currentRevealIndex,
-          revealedAt: revealedLocation?.revealedAt.toISOString() || new Date().toISOString(),
-        },
-      });
+      try {
+        this.broadcast(game, {
+          type: "location-revealed",
+          data: {
+            ...location,
+            revealIndex: game.currentRevealIndex,
+            revealedAt: revealedLocation?.revealedAt.toISOString() || new Date().toISOString(),
+          },
+        });
+      } catch (broadcastError) {
+        console.error(`Error broadcasting location reveal for session ${game.code}:`, broadcastError);
+        // Continue - the location was revealed in DB
+      }
     } catch (error) {
       console.error("Error revealing next location:", error);
-      // Optionally broadcast error or retry
+      // Log but don't crash - the server should continue running
     }
   }
 
@@ -268,8 +304,24 @@ export class GameManager {
     if (!game) return;
 
     const payload = JSON.stringify(message);
+    const closedClients: any[] = [];
+    
     game.clients.forEach((client) => {
-      client.send(payload);
+      try {
+        if (client.readyState === 1) { // WebSocket.OPEN
+          client.send(payload);
+        } else {
+          closedClients.push(client);
+        }
+      } catch (error) {
+        console.error(`Error broadcasting to client:`, error);
+        closedClients.push(client);
+      }
+    });
+
+    // Remove closed clients
+    closedClients.forEach((client) => {
+      game.clients.delete(client);
     });
   }
 
@@ -278,10 +330,26 @@ export class GameManager {
     if (!game) return;
 
     const payload = JSON.stringify(message);
+    const closedClients: any[] = [];
+    
     game.clients.forEach((client) => {
       if (client !== excludeClient) {
-        client.send(payload);
+        try {
+          if (client.readyState === 1) { // WebSocket.OPEN
+            client.send(payload);
+          } else {
+            closedClients.push(client);
+          }
+        } catch (error) {
+          console.error(`Error broadcasting to client:`, error);
+          closedClients.push(client);
+        }
       }
+    });
+
+    // Remove closed clients
+    closedClients.forEach((client) => {
+      game.clients.delete(client);
     });
   }
 

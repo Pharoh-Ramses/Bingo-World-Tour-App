@@ -23,9 +23,15 @@ export function handleWebSocket(gameManager: GameManager) {
 
         if (!session) {
           console.log(`Session not found for code: ${code}`);
-          ws.send(
-            JSON.stringify({ type: "error", message: "Invalid session code" }),
-          );
+          try {
+            if (ws.readyState === 1) {
+              ws.send(
+                JSON.stringify({ type: "error", message: "Invalid session code" }),
+              );
+            }
+          } catch (error) {
+            console.error(`Error sending error message:`, error);
+          }
           ws.close();
           return;
         }
@@ -54,7 +60,17 @@ export function handleWebSocket(gameManager: GameManager) {
         };
 
         console.log(`Sending initial message:`, JSON.stringify(initialMessage, null, 2));
-        ws.send(JSON.stringify(initialMessage));
+        try {
+          if (ws.readyState === 1) { // WebSocket.OPEN
+            ws.send(JSON.stringify(initialMessage));
+          } else {
+            console.warn(`WebSocket not open, readyState: ${ws.readyState}`);
+          }
+        } catch (error) {
+          console.error(`Error sending initial message:`, error);
+          ws.close();
+          return;
+        }
 
         // Broadcast player-joined to all OTHER clients
         if (userId) {
@@ -103,8 +119,18 @@ export function handleWebSocket(gameManager: GameManager) {
         console.log(`Client successfully connected to session ${code}`);
       } catch (error) {
         console.error("Error in WebSocket open:", error);
-        ws.send(JSON.stringify({ type: "error", message: "Connection failed" }));
-        ws.close();
+        try {
+          if (ws.readyState === 1) {
+            ws.send(JSON.stringify({ type: "error", message: "Connection failed" }));
+          }
+        } catch (sendError) {
+          console.error("Error sending error message:", sendError);
+        }
+        try {
+          ws.close();
+        } catch (closeError) {
+          console.error("Error closing WebSocket:", closeError);
+        }
       }
     },
 
@@ -116,7 +142,13 @@ export function handleWebSocket(gameManager: GameManager) {
 
         switch (data.type) {
           case "ping":
-            ws.send(JSON.stringify({ type: "pong" }));
+            try {
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: "pong" }));
+              }
+            } catch (error) {
+              console.error("Error sending pong:", error);
+            }
             break;
 
           case "manual-reveal":
@@ -159,9 +191,15 @@ export function handleWebSocket(gameManager: GameManager) {
         }
       } catch (error) {
         console.error("Error handling message:", error);
-        ws.send(
-          JSON.stringify({ type: "error", message: "Invalid message format" }),
-        );
+        try {
+          if (ws.readyState === 1) {
+            ws.send(
+              JSON.stringify({ type: "error", message: "Invalid message format" }),
+            );
+          }
+        } catch (sendError) {
+          console.error("Error sending error message:", sendError);
+        }
       }
     },
 
@@ -175,11 +213,15 @@ export function handleWebSocket(gameManager: GameManager) {
 
       // Broadcast player-left to all remaining clients
       if (userId) {
-        gameManager.broadcast(code, {
-          type: "player-left",
-          data: { userId },
-        });
-        console.log(`Broadcasted player-left for userId: ${userId}`);
+        try {
+          gameManager.broadcast(code, {
+            type: "player-left",
+            data: { userId },
+          });
+          console.log(`Broadcasted player-left for userId: ${userId}`);
+        } catch (error) {
+          console.error("Error broadcasting player-left:", error);
+        }
       }
     },
 
