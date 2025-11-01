@@ -46,13 +46,14 @@ export interface PlayerInfo {
 // Incoming messages from WebSocket server
 export type WSIncomingMessage =
   | { type: 'connected', data: GameSession }
-  | { type: 'game-started' }
+  | { type: 'game-started', location?: LocationRevealedPayload }
   | { type: 'location-revealed', data: LocationRevealedPayload }
   | { type: 'game-paused' }
   | { type: 'game-resumed' }
   | { type: 'game-ended' }
   | { type: 'winner-found', data: Winner }
   | { type: 'player-joined', data: PlayerInfo }
+  | { type: 'player-ready', data: PlayerInfo }
   | { type: 'player-left', data: { userId: string } }
   | { type: 'error', message: string }
   | { type: 'pong' }
