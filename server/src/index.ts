@@ -1,13 +1,37 @@
 import { GameManager } from "./game-manager";
 import { handleWebSocket } from "./websocket-handler";
+import { prisma } from "./utils/prisma";
 
 const PORT = parseInt(process.env.PORT || "3000");
 const gameManager = new GameManager();
 
+// Global error handlers to prevent crashes
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit - log and continue
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  // Log error but don't exit - let Fly.io handle restart if needed
+  // Exiting here could cause restart loops
+  // Instead, log and continue, hoping the error was recoverable
+});
+
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  process.exit(0);
+});
+
 const server = Bun.serve({
   port: PORT,
   hostname: "0.0.0.0",
-  fetch(req, server) {
+  async fetch(req, server) {
     const url = new URL(req.url);
     
     // Add CORS headers for all responses
@@ -24,7 +48,20 @@ const server = Bun.serve({
 
     // Health check endpoint
     if (url.pathname === "/health") {
-      return new Response("OK", { status: 200, headers: corsHeaders });
+      try {
+        // Check database connectivity
+        await prisma.$queryRaw`SELECT 1`;
+        return new Response(JSON.stringify({ status: "OK", database: "connected" }), { 
+          status: 200, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        });
+      } catch (error) {
+        console.error("Health check failed - database error:", error);
+        return new Response(JSON.stringify({ status: "ERROR", database: "disconnected", error: error instanceof Error ? error.message : "Unknown error" }), { 
+          status: 503, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        });
+      }
     }
 
     // Start game endpoint (called by Next.js API route)
@@ -88,4 +125,13 @@ const server = Bun.serve({
   websocket: handleWebSocket(gameManager),
 });
 
-console.log(`WebSocket server running on 0.0.0.0:${PORT}`);
+// Test database connection on startup
+prisma.$connect()
+  .then(() => {
+    console.log("Database connected successfully");
+    console.log(`WebSocket server running on 0.0.0.0:${PORT}`);
+  })
+  .catch((error) => {
+    console.error("Failed to connect to database:", error);
+    console.log(`WebSocket server running on 0.0.0.0:${PORT} (database connection failed)`);
+  });
