@@ -60,7 +60,12 @@ const LobbyPage = () => {
   const handleWebSocketMessage = useCallback((message: WSIncomingMessage) => {
     switch (message.type) {
       case 'connected':
-        setSession(prev => prev ? { ...prev, status: message.data.status } : null)
+        const newStatus = message.data.status
+        setSession(prev => prev ? { ...prev, status: newStatus } : null)
+        // Redirect to play page if game is already active
+        if (newStatus === 'ACTIVE' || newStatus === 'PAUSED') {
+          router.push(`/game/${sessionCode}/play`)
+        }
         break
 
       case 'game-started':
@@ -86,6 +91,48 @@ const LobbyPage = () => {
       case 'player-joined':
         setSession(prev => {
           if (!prev) return null
+          // Check if player already exists to avoid duplicates
+          const playerExists = prev.players.some(p => p.id === message.data.userId)
+          if (playerExists) {
+            // Update existing player
+            return {
+              ...prev,
+              players: prev.players.map(p => 
+                p.id === message.data.userId 
+                  ? { ...p, name: message.data.userName || p.name, isReady: message.data.isReady !== undefined ? message.data.isReady : p.isReady }
+                  : p
+              )
+            }
+          }
+          // Add new player
+          return {
+            ...prev,
+            players: [...prev.players, {
+              id: message.data.userId,
+              name: message.data.userName || 'Anonymous',
+              isReady: message.data.isReady || false
+            }],
+            playerCount: prev.playerCount + 1
+          }
+        })
+        break
+
+      case 'player-ready':
+        setSession(prev => {
+          if (!prev) return null
+          // Update player ready status
+          const playerExists = prev.players.some(p => p.id === message.data.userId)
+          if (playerExists) {
+            return {
+              ...prev,
+              players: prev.players.map(p => 
+                p.id === message.data.userId 
+                  ? { ...p, name: message.data.userName || p.name, isReady: message.data.isReady !== undefined ? message.data.isReady : p.isReady }
+                  : p
+              )
+            }
+          }
+          // Add new player if they don't exist
           return {
             ...prev,
             players: [...prev.players, {

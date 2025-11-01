@@ -137,6 +137,35 @@ const SessionControlPanel = () => {
         })
         break
 
+      case 'player-ready':
+        console.log('Admin: Player ready:', message.data)
+        setSession(prev => {
+          if (!prev) return null
+          // Update player ready status
+          const playerExists = prev.players.some(p => p.id === message.data.userId)
+          if (playerExists) {
+            return {
+              ...prev,
+              players: prev.players.map(p => 
+                p.id === message.data.userId 
+                  ? { ...p, name: message.data.userName || p.name, isReady: message.data.isReady !== undefined ? message.data.isReady : p.isReady }
+                  : p
+              )
+            }
+          }
+          // Add new player if they don't exist
+          return {
+            ...prev,
+            players: [...prev.players, {
+              id: message.data.userId,
+              name: message.data.userName || 'Anonymous',
+              isReady: message.data.isReady || false
+            }],
+            playerCount: prev.playerCount + 1
+          }
+        })
+        break
+
       case 'player-left':
         console.log('Admin: Player left:', message.data)
         setSession(prev => {

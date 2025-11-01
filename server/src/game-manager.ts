@@ -36,6 +36,10 @@ export class GameManager {
         throw new Error("Cannot start game: No locations available in database");
       }
 
+      // Check if game already exists and preserve existing clients
+      const existingGame = this.activeGames.get(code);
+      const existingClients = existingGame?.clients || new Set();
+
       const game: ActiveGame = {
         sessionId: session.id,
         code: session.code,
@@ -45,7 +49,7 @@ export class GameManager {
         currentRevealIndex: session.currentRevealIndex,
         maxReveals: session.maxReveals,
         allLocationIds,
-        clients: new Set(),
+        clients: existingClients, // Preserve existing clients
       };
 
       // Start auto-reveal timer
@@ -53,11 +57,14 @@ export class GameManager {
       this.activeGames.set(code, game);
 
       // Reveal the first location immediately
-      await this.revealNextLocation(game);
+      const revealedLocationData = await this.revealNextLocation(game);
       console.log(`Revealed initial location for session: ${code}`);
 
-      // Broadcast game-started to all connected clients
-      this.broadcast(game, { type: "game-started" });
+      // Broadcast game-started with location data to all connected clients
+      this.broadcast(game, { 
+        type: "game-started",
+        ...(revealedLocationData && { location: revealedLocationData })
+      });
       console.log(`Broadcasted game-started for session: ${code}`);
 
       return game;
@@ -79,14 +86,29 @@ export class GameManager {
     scheduleNextReveal();
   }
 
-  async revealNextLocation(game: ActiveGame) {
+  async revealNextLocation(game: ActiveGame): Promise<any> {
     try {
+      // Sync currentRevealIndex with database before checking limits
+      try {
+        const session = await prisma.gameSession.findUnique({
+          where: { id: game.sessionId },
+          select: { currentRevealIndex: true },
+        });
+        if (session) {
+          game.currentRevealIndex = session.currentRevealIndex;
+          console.log(`Synced currentRevealIndex from DB: ${game.currentRevealIndex}`);
+        }
+      } catch (syncError) {
+        console.error(`Error syncing currentRevealIndex for session ${game.code}:`, syncError);
+        // Continue with existing value
+      }
+
       console.log(`revealNextLocation called for session ${game.code}: currentIndex=${game.currentRevealIndex}, maxReveals=${game.maxReveals}`);
 
       if (game.currentRevealIndex >= game.maxReveals) {
         console.log(`Max reveals reached for session ${game.code}, ending game`);
         await this.endGame(game.code);
-        return;
+        return null;
       }
 
       // Get revealed location IDs to exclude
@@ -98,7 +120,7 @@ export class GameManager {
         });
       } catch (dbError) {
         console.error(`Database error fetching revealed locations for session ${game.code}:`, dbError);
-        return; // Don't crash, just skip this reveal
+        return null; // Don't crash, just skip this reveal
       }
 
       const revealedIds = revealed.map(r => r.locationId);
@@ -112,7 +134,7 @@ export class GameManager {
       if (unrevealed.length === 0) {
         console.error(`No unrevealed locations available for session ${game.code}. Total locations: ${game.allLocationIds.length}, Revealed: ${revealedIds.length}`);
         await this.endGame(game.code);
-        return;
+        return null;
       }
 
       // Random location selection
@@ -136,7 +158,7 @@ export class GameManager {
         console.error(`Database error creating revealed location for session ${game.code}:`, dbError);
         // Rollback the increment
         game.currentRevealIndex--;
-        return;
+        return null;
       }
 
       // Update session's currentRevealIndex
@@ -158,12 +180,12 @@ export class GameManager {
         });
       } catch (dbError) {
         console.error(`Database error fetching location ${locationId}:`, dbError);
-        return;
+        return null;
       }
 
       if (!location) {
         console.error(`Location not found: ${locationId}`);
-        return;
+        return null;
       }
 
       // Get the revealed location record to get the exact revealIndex and revealedAt
@@ -182,31 +204,80 @@ export class GameManager {
         // Continue with default values
       }
 
+      // Prepare location data for broadcast
+      const locationData = {
+        ...location,
+        revealIndex: game.currentRevealIndex,
+        revealedAt: revealedLocation?.revealedAt.toISOString() || new Date().toISOString(),
+      };
+
       // Broadcast to all clients with revealIndex and revealedAt
       try {
         this.broadcast(game, {
           type: "location-revealed",
-          data: {
-            ...location,
-            revealIndex: game.currentRevealIndex,
-            revealedAt: revealedLocation?.revealedAt.toISOString() || new Date().toISOString(),
-          },
+          data: locationData,
         });
+        console.log(`Broadcasted location-revealed for session ${game.code}: ${location.name} (index ${game.currentRevealIndex})`);
       } catch (broadcastError) {
         console.error(`Error broadcasting location reveal for session ${game.code}:`, broadcastError);
         // Continue - the location was revealed in DB
       }
+
+      // Return location data for use in game-started message
+      return locationData;
     } catch (error) {
       console.error("Error revealing next location:", error);
       // Log but don't crash - the server should continue running
+      return null;
     }
   }
 
   async manualReveal(code: string) {
     const game = this.activeGames.get(code);
-    if (!game) throw new Error("Game not found");
+    if (!game) {
+      // If game not in memory, try to load it from database
+      const session = await prisma.gameSession.findUnique({
+        where: { code },
+        include: { revealedLocations: { orderBy: { revealIndex: 'asc' } } },
+      });
 
-    await this.revealNextLocation(game);
+      if (!session || session.status !== "ACTIVE") {
+        throw new Error("Game not found or not active");
+      }
+
+      // Get all location IDs
+      const locations = await prisma.location.findMany({ select: { id: true } });
+      const allLocationIds = locations.map((l) => l.id);
+
+      // Create game object with existing clients if any
+      const existingGame = this.activeGames.get(code);
+      const existingClients = existingGame?.clients || new Set();
+
+      const newGame: ActiveGame = {
+        sessionId: session.id,
+        code: session.code,
+        revealInterval: session.revealInterval,
+        startedAt: session.startedAt!,
+        timer: existingGame?.timer || null,
+        currentRevealIndex: session.currentRevealIndex,
+        maxReveals: session.maxReveals,
+        allLocationIds,
+        clients: existingClients,
+      };
+
+      // Start timer if game was active but not in memory
+      if (!existingGame && session.status === "ACTIVE") {
+        this.startRevealTimer(newGame);
+      }
+
+      this.activeGames.set(code, newGame);
+      
+      // Now reveal the location
+      await this.revealNextLocation(newGame);
+    } else {
+      // Sync currentRevealIndex before revealing
+      await this.revealNextLocation(game);
+    }
   }
 
   async pauseGame(code: string) {
@@ -351,6 +422,55 @@ export class GameManager {
     closedClients.forEach((client) => {
       game.clients.delete(client);
     });
+  }
+
+  async broadcastPlayerReady(code: string, userId: string) {
+    try {
+      // Get the game session to find the player board
+      const session = await prisma.gameSession.findUnique({
+        where: { code },
+      });
+
+      if (!session) {
+        console.error(`Session not found for code: ${code}`);
+        return;
+      }
+
+      // Fetch player board info to get user details and ready status
+      const playerBoard = await prisma.playerBoard.findUnique({
+        where: {
+          userId_sessionId: {
+            userId: userId,
+            sessionId: session.id,
+          },
+        },
+        include: {
+          user: true,
+        },
+      });
+
+      if (!playerBoard) {
+        console.error(`Player board not found for userId: ${userId}, sessionId: ${session.id}`);
+        return;
+      }
+
+      const playerInfo = {
+        userId: userId,
+        userName: playerBoard.user.name || undefined,
+        isReady: playerBoard.isReady,
+        joinedAt: playerBoard.joinedAt.toISOString(),
+      };
+
+      // Broadcast player-ready to all connected clients
+      this.broadcast(code, {
+        type: "player-ready",
+        data: playerInfo,
+      });
+
+      console.log(`Broadcasted player-ready for userId: ${userId}, isReady: ${playerBoard.isReady}`);
+    } catch (error) {
+      console.error(`Error broadcasting player ready for session ${code}:`, error);
+    }
   }
 
   getGame(code: string) {

@@ -95,10 +95,41 @@ const server = Bun.serve({
       }
     }
 
+    // Player ready endpoint (called by Next.js API route when player joins/becomes ready)
+    if (url.pathname === "/player-ready" && req.method === "POST") {
+      try {
+        const body = await req.json();
+        const { sessionCode, userId } = body;
+
+        if (!sessionCode || !userId) {
+          return new Response(
+            JSON.stringify({ error: "Session code and user ID required" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`HTTP request to notify player ready for session: ${sessionCode}, userId: ${userId}`);
+
+        // Broadcast player-ready to all connected clients
+        await gameManager.broadcastPlayerReady(sessionCode, userId);
+
+        return new Response(
+          JSON.stringify({ success: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error) {
+        console.error("Error broadcasting player ready via HTTP:", error);
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to broadcast player ready" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // WebSocket upgrade
     if (url.pathname === "/ws") {
       const code = url.searchParams.get("sessionCode");
-      const userId = url.searchParams.get("userId");
+      const userId = url.searchParams.get("userId") || undefined;
 
       console.log(`WebSocket connection attempt: sessionCode=${code}, userId=${userId}`);
 

@@ -122,6 +122,24 @@ export async function POST(
       })
     }
 
+    // Notify WebSocket server to broadcast player-ready
+    try {
+      const wsServerUrl = process.env.WEBSOCKET_SERVER_URL || 'http://localhost:3001'
+      await fetch(`${wsServerUrl}/player-ready`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          sessionCode: session.code,
+          userId: user.id
+        }),
+      })
+    } catch (error) {
+      console.error('Error notifying WebSocket server:', error)
+      // Don't fail the request, board was created successfully
+    }
+
     return NextResponse.json({
       success: true,
       boardId: playerBoard.id
