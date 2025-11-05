@@ -45,6 +45,14 @@ interface LocationData {
   category: string | null
 }
 
+interface Winner {
+  userId: string
+  userName?: string
+  place: number
+  winPattern: string
+  wonAt: string
+}
+
 const ActiveGamePage = () => {
   const params = useParams()
   const router = useRouter()
@@ -61,6 +69,7 @@ const ActiveGamePage = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmittingBingo, setIsSubmittingBingo] = useState(false)
   const [error, setError] = useState('')
+  const [winners, setWinners] = useState<Winner[]>([])
 
   const fetchGameData = useCallback(async () => {
     try {
@@ -75,7 +84,7 @@ const ActiveGamePage = () => {
       const boardResponse = await fetch(`/api/game/${sessionCode}/board`)
       if (boardResponse.ok) {
         const boardData = await boardResponse.json()
-        setPlayerBoard(boardData)
+        setPlayerBoard(boardData.board)
       }
 
       // Fetch all locations (hybrid approach)
@@ -136,8 +145,13 @@ const ActiveGamePage = () => {
         break
         
       case 'winner-found':
-        // Show notification or handle winner announcement
-        console.log('Winner found:', message.data)
+        // Add winner to the list
+        setWinners(prev => [...prev, {
+          userId: message.data.userId,
+          place: message.data.place,
+          winPattern: 'unknown', // Would need to fetch from API
+          wonAt: new Date().toISOString()
+        }])
         break
         
       case 'error':
@@ -156,16 +170,18 @@ const ActiveGamePage = () => {
 
   useEffect(() => {
     // Check for BINGO after each tile selection
-    if (playerBoard && revealedLocations.length > 0) {
+    if (playerBoard && playerBoard.boardLayout && revealedLocations.length > 0) {
       const revealedIds = revealedLocations.map(r => r.locationId)
-      const hasWin = hasBingo(selectedTiles, revealedIds.map(id => 
-        playerBoard.boardLayout.includes(id)
-      ))
+      
+      // Create revealed array: for each board position, check if that location has been revealed
+      const revealed = playerBoard.boardLayout.map(locId => 
+        locId ? revealedIds.includes(locId) : false
+      )
+      
+      const hasWin = hasBingo(selectedTiles, revealed)
       
       if (hasWin) {
-        const patterns = findWinningPatterns(selectedTiles, revealedIds.map(id => 
-          playerBoard.boardLayout.includes(id)
-        ))
+        const patterns = findWinningPatterns(selectedTiles, revealed)
         if (patterns.length > 0) {
           setWinningPattern(patterns[0])
         }
@@ -257,11 +273,13 @@ const ActiveGamePage = () => {
     )
   }
 
-  if (!session || !playerBoard) {
+  if (!session || !playerBoard || !playerBoard.boardLayout) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-20 py-8 sm:py-12 lg:py-16">
         <div className="text-center">
-          <p className="body-1 text-tertiary-300">Game not found</p>
+          <p className="body-1 text-tertiary-300">
+            {!session ? 'Game not found' : 'Loading your board...'}
+          </p>
           <Button 
             variant="outline" 
             onClick={() => router.push('/join')}
@@ -286,16 +304,22 @@ const ActiveGamePage = () => {
             Session {session.code} • {session.playerCount} players
           </p>
           <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 mt-4">
-            <Badge className={`${session.status === 'ACTIVE' ? 'bg-success text-white' : 'bg-warning text-white'}`}>
+            <Badge
+              data-testid={session.status === 'ACTIVE' ? 'game-active' : 'game-paused'}
+              className={`${session.status === 'ACTIVE' ? 'bg-success text-white' : 'bg-warning text-white'}`}
+            >
               {session.status === 'ACTIVE' ? 'Game Active' : 'Game Paused'}
             </Badge>
-            <Badge className={`${
-              connectionState === 'connected' ? 'bg-success text-white' : 
-              connectionState === 'connecting' ? 'bg-warning text-white' : 
-              'bg-error text-white'
-            }`}>
-              {connectionState === 'connected' ? 'Connected' : 
-               connectionState === 'connecting' ? 'Connecting...' : 
+            <Badge
+              data-testid="connection-status"
+              className={`${
+                connectionState === 'connected' ? 'bg-success text-white' :
+                connectionState === 'connecting' ? 'bg-warning text-white' :
+                'bg-error text-white'
+              }`}
+            >
+              {connectionState === 'connected' ? 'Connected' :
+               connectionState === 'connecting' ? 'Connecting...' :
                'Disconnected'}
             </Badge>
           </div>
@@ -351,12 +375,15 @@ const ActiveGamePage = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div>
-                  <p className="body-3 text-tertiary-400">Revealed Locations</p>
-                  <p className="body-2 text-tertiary-600">
-                    {revealedLocations.length}/{session.maxReveals}
-                  </p>
-                </div>
+                 <div>
+                   <p className="body-3 text-tertiary-400">Revealed Locations</p>
+                   <p
+                     data-testid="revealed-locations"
+                     className="body-2 text-tertiary-600"
+                   >
+                     {revealedLocations.length}/{session.maxReveals}
+                   </p>
+                 </div>
                 <div>
                   <p className="body-3 text-tertiary-400">Next Reveal</p>
                   <p className="body-2 text-tertiary-600">
@@ -403,6 +430,45 @@ const ActiveGamePage = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* Winners */}
+            {winners.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="heading-4 text-tertiary-500">
+                    🏆 Winners
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {winners.map((winner) => (
+                      <div
+                        key={`${winner.userId}-${winner.place}`}
+                        data-testid={`winner-place-${winner.place}`}
+                        className="p-3 bg-success/10 border border-success/20 rounded-lg"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">
+                            {winner.place === 1 ? '🥇' : winner.place === 2 ? '🥈' : winner.place === 3 ? '🥉' : '🏅'}
+                          </span>
+                          <div>
+                            <p className="body-3 text-tertiary-600 font-medium">
+                              {winner.place === 1 ? '1st Place' :
+                               winner.place === 2 ? '2nd Place' :
+                               winner.place === 3 ? '3rd Place' :
+                               `${winner.place}th Place`}
+                            </p>
+                            <p className="body-4 text-tertiary-400">
+                              {winner.userName || 'Anonymous Player'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Error Display */}
             {error && (

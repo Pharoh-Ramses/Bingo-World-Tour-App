@@ -239,13 +239,16 @@ const LobbyPage = () => {
               <Badge className={getStatusColor(session.status)}>
                 {getStatusText(session.status)}
               </Badge>
-              <Badge className={`${
-                connectionState === 'connected' ? 'bg-success text-white' : 
-                connectionState === 'connecting' ? 'bg-warning text-white' : 
-                'bg-error text-white'
-              }`}>
-                {connectionState === 'connected' ? 'Connected' : 
-                 connectionState === 'connecting' ? 'Connecting...' : 
+              <Badge
+                data-testid="connection-status"
+                className={`${
+                  connectionState === 'connected' ? 'bg-success text-white' :
+                  connectionState === 'connecting' ? 'bg-warning text-white' :
+                  'bg-error text-white'
+                }`}
+              >
+                {connectionState === 'connected' ? 'Connected' :
+                 connectionState === 'connecting' ? 'Connecting...' :
                  'Disconnected'}
               </Badge>
             </div>

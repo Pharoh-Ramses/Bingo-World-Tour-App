@@ -103,6 +103,17 @@ const BingoBoard = ({
     return `${baseClasses} bg-neutral-200 border-neutral-400`
   }
 
+  // Guard against undefined boardLayout
+  if (!boardLayout || !Array.isArray(boardLayout) || boardLayout.length !== 25) {
+    return (
+      <div className="w-full max-w-md mx-auto">
+        <div className="text-center p-8 bg-neutral-100 rounded-lg">
+          <p className="body-2 text-tertiary-400">Loading board...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="grid grid-cols-5 gap-1 sm:gap-2">
@@ -112,6 +123,7 @@ const BingoBoard = ({
           return (
             <div
               key={position}
+              data-testid={`bingo-tile-${position}`}
               className={getTileClasses(position)}
               onClick={() => {
                 if (isGameActive && state.isRevealed && !state.isCenter) {
