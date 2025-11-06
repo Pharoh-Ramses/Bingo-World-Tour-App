@@ -25,7 +25,7 @@ COPY bun.lock package-lock.json package.json ./
 RUN bun install --ci
 
 # Generate Prisma Client
-COPY prisma .
+COPY prisma ./prisma
 RUN bunx prisma generate
 
 # Copy application code
