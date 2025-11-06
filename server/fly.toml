@@ -8,8 +8,8 @@ primary_region = 'dfw'
 
 [build]
 
-[deploy]
-   release_command = 'bunx prisma db push'
+# [deploy]
+#    release_command = 'bunx prisma db push'
 
 [http_service]
   internal_port = 3000
