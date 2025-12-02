@@ -24,7 +24,6 @@ export async function GET(
             }
           }
         },
-        },
         winners: {
           include: {
             user: true

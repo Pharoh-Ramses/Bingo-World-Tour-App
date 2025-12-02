@@ -185,36 +185,6 @@ export function useWebSocket({
         onConnect?.()
       }
 
-      ws.onmessage = (event) => {
-        console.log('WebSocket message received:', event.data)
-        try {
-          const message: WSIncomingMessage = JSON.parse(event.data)
-          console.log('Parsed WebSocket message:', message)
-          setLastMessage(message)
-          onMessage?.(message)
-          
-          // Store last known state for sync
-          lastKnownStateRef.current = { messageId: message.type, timestamp: Date.now() }
-          onMessage?.(message)
-          
-          // Update connection quality based on message timing
-          if (lastKnownStateRef.current) {
-            const timeSinceLastMessage = Date.now() - lastKnownStateRef.current.timestamp
-            if (timeSinceLastMessage < 1000) {
-              connectionQualityRef.current = 'excellent'
-            } else if (timeSinceLastMessage < 3000) {
-              connectionQualityRef.current = 'good'
-            } else if (timeSinceLastMessage < 10000) {
-              connectionQualityRef.current = 'poor'
-            }
-          }
-        }
-        } catch (err) {
-          console.error('Failed to parse WebSocket message:', err)
-          setError('Failed to parse message')
-        }
-      }
-
       ws.onclose = (event) => {
         console.log('WebSocket connection closed:', event.code, event.reason)
         isConnectingRef.current = false
@@ -277,17 +247,22 @@ export function useWebSocket({
         clearInterval(heartbeatInterval)
       }
     }, 30000) // Send heartbeat every 30 seconds
+    return heartbeatInterval
+  }, [send])
 
-    // Start heartbeat on connection
-    useEffect(() => {
-      if (connectionState === 'connected') {
-        startHeartbeat()
-      }
-      
-      return () => {
+  // Start heartbeat on connection
+  useEffect(() => {
+    let heartbeatInterval: NodeJS.Timeout | null = null
+    if (connectionState === 'connected') {
+      heartbeatInterval = startHeartbeat()
+    }
+
+    return () => {
+      if (heartbeatInterval) {
         clearInterval(heartbeatInterval)
       }
-    }, [connectionState, send])
+    }
+  }, [connectionState, startHeartbeat])
 
   return {
     connectionState,
