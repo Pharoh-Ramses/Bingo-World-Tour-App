@@ -14,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useWebSocket } from "@/lib/useWebSocket";
 import { WSIncomingMessage } from "@/lib/websocket-types";
+import AdminEventDashboard from "@/components/AdminEventDashboard";
 
 interface GameSession {
     id: string;
@@ -57,6 +58,7 @@ const SessionControlPanel = () => {
     const [isEnding, setIsEnding] = useState(false);
     const [wsSessionCode, setWsSessionCode] = useState<string | null>(null);
     const [startError, setStartError] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
 
     const fetchSessionData = useCallback(async () => {
         try {
@@ -371,64 +373,95 @@ const SessionControlPanel = () => {
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-20 py-4 sm:py-8 lg:py-16">
-            <div className="space-y-4 sm:space-y-8">
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-                    <div>
-                        <div className="flex items-baseline gap-2 flex-wrap">
-                            <h1 className="heading-3 sm:heading-2 lg:heading-1 text-tertiary-500">
-                                Session
-                            </h1>
-                            <span
-                                className="text-2xl sm:text-3xl lg:text-4xl font-bold text-tertiary-500"
-                                style={{ fontFamily: "var(--font-dm-sans)" }}
-                            >
-                                {session.code}
-                            </span>
-                        </div>
-                        <p className="body-3 sm:body-2 lg:body-1 text-tertiary-300 mt-1 sm:mt-2">
-                            Manage your BINGO World Tour game session
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-                        <Badge className={getStatusColor(session.status)}>
-                            {getStatusText(session.status)}
-                        </Badge>
-                        <Badge
-                            data-testid="connection-status"
-                            className={`${
-                                connectionState === "connected"
-                                    ? "bg-success text-white"
-                                    : connectionState === "connecting"
-                                      ? "bg-warning text-white"
-                                      : "bg-error text-white"
+        <div className="min-h-screen bg-neutral-100">
+            {/* Tab Navigation */}
+            <div className="bg-white border-b border-neutral-200">
+                <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-20">
+                    <div className="flex space-x-8">
+                        <button
+                            onClick={() => setActiveTab('basic')}
+                            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                                activeTab === 'basic'
+                                    ? 'border-primary-500 text-primary-600'
+                                    : 'border-transparent text-neutral-500 hover:text-neutral-700'
                             }`}
                         >
-                            {connectionState === "connected"
-                                ? "Connected"
-                                : connectionState === "connecting"
-                                  ? "Connecting..."
-                                  : "Disconnected"}
-                        </Badge>
-                        <Button
-                            variant="outline"
-                            onClick={() => router.push("/admin")}
-                            size="sm"
-                            className="hidden sm:flex"
+                            Basic Controls
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('advanced')}
+                            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                                activeTab === 'advanced'
+                                    ? 'border-primary-500 text-primary-600'
+                                    : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                            }`}
                         >
-                            Back to Dashboard
-                        </Button>
-                        <Button
-                            variant="outline"
-                            onClick={() => router.push("/admin")}
-                            size="sm"
-                            className="sm:hidden"
-                        >
-                            Back
-                        </Button>
+                            Advanced Dashboard
+                        </button>
                     </div>
                 </div>
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === 'basic' ? (
+                <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-20 py-4 sm:py-8 lg:py-16">
+                    <div className="space-y-4 sm:space-y-8">
+                        {/* Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+                            <div>
+                                <div className="flex items-baseline gap-2 flex-wrap">
+                                    <h1 className="heading-3 sm:heading-2 lg:heading-1 text-tertiary-500">
+                                        Session
+                                    </h1>
+                                    <span
+                                        className="text-2xl sm:text-3xl lg:text-4xl font-bold text-tertiary-500"
+                                        style={{ fontFamily: "var(--font-dm-sans)" }}
+                                    >
+                                        {session.code}
+                                    </span>
+                                </div>
+                                <p className="body-3 sm:body-2 lg:body-1 text-tertiary-300 mt-1 sm:mt-2">
+                                    Manage your BINGO World Tour game session
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+                                <Badge className={getStatusColor(session.status)}>
+                                    {getStatusText(session.status)}
+                                </Badge>
+                                <Badge
+                                    data-testid="connection-status"
+                                    className={`${
+                                        connectionState === "connected"
+                                            ? "bg-success text-white"
+                                            : connectionState === "connecting"
+                                              ? "bg-warning text-white"
+                                              : "bg-error text-white"
+                                    }`}
+                                >
+                                    {connectionState === "connected"
+                                        ? "Connected"
+                                        : connectionState === "connecting"
+                                          ? "Connecting..."
+                                          : "Disconnected"}
+                                </Badge>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => window.open(`/game/${session.code}/audience`, '_blank')}
+                                    size="sm"
+                                    className="hidden sm:flex"
+                                >
+                                    Open Audience Display
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => router.push("/admin")}
+                                    size="sm"
+                                    className="sm:hidden"
+                                >
+                                    Back
+                                </Button>
+                            </div>
+                        </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6 lg:gap-8">
                     {/* Session Info */}
@@ -681,7 +714,11 @@ const SessionControlPanel = () => {
                         </Card>
                     </div>
                 </div>
-            </div>
+                    </div>
+                </div>
+            ) : (
+                <AdminEventDashboard sessionCode={session.code} />
+            )}
         </div>
     );
 };

@@ -29,6 +29,10 @@ export interface GameSession {
   sessionCode: string
   status: 'WAITING' | 'STARTING' | 'ACTIVE' | 'PAUSED' | 'ENDED'
   revealedLocations: RevealedLocation[]
+  countdownEndsAt?: string
+  nextLocationRevealedAt?: string
+  connectedPlayers: number
+  readyPlayers: number
 }
 
 export interface Winner {
@@ -46,6 +50,7 @@ export interface PlayerInfo {
 // Incoming messages from WebSocket server
 export type WSIncomingMessage =
   | { type: 'connected', data: GameSession }
+  | { type: 'game-starting', data: { countdownSeconds: number } }
   | { type: 'game-started', location?: LocationRevealedPayload }
   | { type: 'location-revealed', data: LocationRevealedPayload }
   | { type: 'game-paused' }
@@ -55,6 +60,10 @@ export type WSIncomingMessage =
   | { type: 'player-joined', data: PlayerInfo }
   | { type: 'player-ready', data: PlayerInfo }
   | { type: 'player-left', data: { userId: string } }
+  | { type: 'player-reconnected', data: PlayerInfo }
+  | { type: 'session-updated', data: Partial<GameSession> }
+  | { type: 'connection-lost', message: string }
+  | { type: 'sync-request', data: { lastKnownMessageId?: string } }
   | { type: 'error', message: string }
   | { type: 'pong' }
 
@@ -66,6 +75,9 @@ export type WSOutgoingMessage =
   | { type: 'resume' }
   | { type: 'end' }
   | { type: 'bingo-claimed', userId: string, place: number }
+  | { type: 'request-sync', data: { lastKnownMessageId?: string } }
+  | { type: 'mark-ready', isReady: boolean }
+  | { type: 'heartbeat' }
 
 // WebSocket connection states
 export type WSConnectionState = 'connecting' | 'connected' | 'disconnected' | 'error'

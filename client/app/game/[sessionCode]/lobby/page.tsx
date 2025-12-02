@@ -68,6 +68,18 @@ const LobbyPage = () => {
         }
         break
 
+      case 'game-starting':
+        setSession(prev => prev ? { ...prev, status: 'STARTING' } : null)
+        break
+
+      case 'game-starting-tick':
+        // Handle countdown updates
+        if (message.data.remainingSeconds !== undefined) {
+          // Could update local state for countdown display
+          console.log(`Game starting in ${message.data.remainingSeconds} seconds`)
+        }
+        break
+
       case 'game-started':
         setSession(prev => prev ? { ...prev, status: 'ACTIVE' } : null)
         // Redirect to play page when game starts
@@ -159,7 +171,7 @@ const LobbyPage = () => {
   }, [router, sessionCode])
 
   // WebSocket connection
-  const { connectionState } = useWebSocket({
+  const { connectionState, connectionQuality } = useWebSocket({
     sessionCode,
     userId: user?.id,
     onMessage: handleWebSocketMessage,
@@ -239,18 +251,30 @@ const LobbyPage = () => {
               <Badge className={getStatusColor(session.status)}>
                 {getStatusText(session.status)}
               </Badge>
-              <Badge
-                data-testid="connection-status"
-                className={`${
-                  connectionState === 'connected' ? 'bg-success text-white' :
-                  connectionState === 'connecting' ? 'bg-warning text-white' :
-                  'bg-error text-white'
-                }`}
-              >
-                {connectionState === 'connected' ? 'Connected' :
-                 connectionState === 'connecting' ? 'Connecting...' :
-                 'Disconnected'}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge
+                  data-testid="connection-status"
+                  className={`${
+                    connectionState === 'connected' ? 'bg-success text-white' :
+                    connectionState === 'connecting' ? 'bg-warning text-white' :
+                    'bg-error text-white'
+                  }`}
+                >
+                  {connectionState === 'connected' ? 'Connected' :
+                    connectionState === 'connecting' ? 'Connecting...' :
+                    'Disconnected'}
+                </Badge>
+                {connectionState === 'connected' && (
+                  <Badge 
+                    variant={connectionQuality === 'excellent' ? 'success' : 
+                             connectionQuality === 'good' ? 'primary' : 
+                             connectionQuality === 'poor' ? 'warning' : 'secondary'}
+                    className="ml-2"
+                  >
+                    {connectionQuality.toUpperCase()}
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
 
@@ -335,31 +359,56 @@ const LobbyPage = () => {
             </Card>
           </div>
 
-          {/* Waiting Message */}
+          {/* Game Status or Countdown */}
           <Card>
             <CardContent className="text-center py-12">
               <div className="space-y-4">
-                <div className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center mx-auto">
-                  <svg 
-                    width="32" 
-                    height="32" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="2" 
-                    className="text-white animate-pulse"
-                  >
-                    <circle cx="12" cy="12" r="10"/>
-                    <polyline points="12,6 12,12 16,14"/>
-                  </svg>
-                </div>
-                <h2 className="heading-3 text-tertiary-500">
-                  Waiting for Game to Start
-                </h2>
-                <p className="body-1 text-tertiary-300 max-w-2xl mx-auto">
-                  The game host will start the session when everyone is ready. 
-                  You&apos;ll be automatically redirected to the game when it begins.
-                </p>
+                {session.status === 'STARTING' ? (
+                  <>
+                    <div className="w-16 h-16 bg-warning rounded-full flex items-center justify-center mx-auto mb-6">
+                      <div className="text-white">
+                        <div className="heading-1 font-bold">GET READY</div>
+                        <div className="body-2">{session.countdownEndsAt ? 
+                          Math.max(0, Math.ceil((new Date(session.countdownEndsAt).getTime() - Date.now()) / 1000)) 
+                        : 0
+                        }s</div>
+                      </div>
+                    </div>
+                    <h2 className="heading-3 text-warning">
+                      Game Starting Soon!
+                    </h2>
+                    <p className="body-1 text-tertiary-300 max-w-2xl mx-auto">
+                      The game is starting in {session.countdownEndsAt ? 
+                        Math.max(0, Math.ceil((new Date(session.countdownEndsAt).getTime() - Date.now()) / 1000)) 
+                        : 0
+                      } seconds!
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center mx-auto">
+                      <svg 
+                        width="32" 
+                        height="32" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        className="text-white animate-pulse"
+                      >
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12,6 12,12 16,14"/>
+                      </svg>
+                    </div>
+                    <h2 className="heading-3 text-tertiary-500">
+                      Waiting for Game to Start
+                    </h2>
+                    <p className="body-1 text-tertiary-300 max-w-2xl mx-auto">
+                      The game host will start the session when everyone is ready. 
+                      You&apos;ll be automatically redirected to the game when it begins.
+                    </p>
+                  </>
+                )}
                 <div className="flex flex-col sm:flex-row gap-4 justify-center mt-6">
                   <Button 
                     variant="outline" 

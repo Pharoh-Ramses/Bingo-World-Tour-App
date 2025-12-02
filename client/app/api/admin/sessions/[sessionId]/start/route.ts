@@ -55,24 +55,27 @@ export async function POST(
       )
     }
 
-    // Update session status to ACTIVE
+    // Update session status to STARTING for countdown
     const updatedSession = await prisma.gameSession.update({
       where: { id: sessionId },
       data: {
-        status: 'ACTIVE',
+        status: 'STARTING',
         startedAt: new Date()
       }
     })
 
-    // Trigger WebSocket server to start the game and broadcast to clients
+    // Trigger WebSocket server to start the countdown
     try {
       const wsServerUrl = process.env.WEBSOCKET_SERVER_URL || 'http://localhost:3001'
-      const response = await fetch(`${wsServerUrl}/start-game`, {
+      const response = await fetch(`${wsServerUrl}/start-game-countdown`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ sessionCode: updatedSession.code }),
+        body: JSON.stringify({ 
+          sessionCode: updatedSession.code,
+          countdownSeconds: 10 // Default 10 second countdown
+        }),
       })
 
       if (!response.ok) {

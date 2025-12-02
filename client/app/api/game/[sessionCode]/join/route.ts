@@ -63,6 +63,14 @@ export async function POST(
       )
     }
 
+    // Race condition prevention: Check if game is starting
+    if (session.status === 'STARTING') {
+      return NextResponse.json(
+        { error: 'Game is starting - please wait and try again', queuePosition: 1 },
+        { status: 429 }
+      )
+    }
+
     // Find user in database (should exist via webhook)
     const user = await prisma.user.findUnique({
       where: { clerkId: userId }
