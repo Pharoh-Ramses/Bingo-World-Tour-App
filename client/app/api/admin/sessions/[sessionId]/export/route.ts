@@ -4,11 +4,12 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
-    const { userId } = auth();
-    
+    const { userId } = await auth();
+    const { sessionId } = await params;
+
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -21,12 +22,12 @@ export async function POST(
 
     // Get session data
     const session = await prisma.gameSession.findUnique({
-      where: { id: params.sessionId },
+      where: { id: sessionId },
       include: {
         playerBoards: {
           include: {
             user: true,
-            playerBoardLocations: {
+            locations: {
               where: { isSelected: true }
             }
           }
@@ -65,13 +66,13 @@ export async function POST(
         name: pb.user.name,
         email: pb.user.email,
         joinTime: pb.joinedAt,
-        completionTime: pb.completedAt,
-        finalScore: pb.playerBoardLocations.length,
+        completionTime: null, // Not tracked in schema
+        finalScore: pb.locations.length,
         isReady: pb.isReady
       })),
       engagementMetrics: {
-        totalTilesMarked: session.playerBoards.reduce((sum, pb) => 
-          sum + pb.playerBoardLocations.length, 0),
+        totalTilesMarked: session.playerBoards.reduce((sum, pb) =>
+          sum + pb.locations.length, 0),
         averageGameTime: new Date(),
         peakActivityTime: new Date(),
         engagementScore: 0 // Would be calculated from analytics
@@ -111,14 +112,49 @@ export async function POST(
   }
 }
 
-function generateCSV(data: any, options: any): string {
+interface ExportData {
+  eventInfo: {
+    eventName: string;
+    date: Date;
+    duration: number;
+    totalPlayers: number;
+    winners: Array<{
+      place: number;
+      name: string | null;
+      email: string;
+      winPattern: string;
+      claimedAt: Date;
+    }>;
+  };
+  playerData: Array<{
+    name: string | null;
+    email: string;
+    joinTime: Date;
+    completionTime: Date | null;
+    finalScore: number;
+    isReady: boolean;
+  }>;
+  engagementMetrics: {
+    totalTilesMarked: number;
+    averageGameTime: Date;
+    peakActivityTime: Date;
+    engagementScore: number;
+  };
+}
+
+interface ExportOptions {
+  format: string;
+  dataTypes: string[];
+}
+
+function generateCSV(data: ExportData, options: ExportOptions): string {
   const headers = [];
   const rows = [];
 
   // Player data
   if (options.dataTypes.includes('players')) {
     headers.push('Player Name', 'Email', 'Join Time', 'Completion Time', 'Final Score', 'Is Ready');
-    data.playerData.forEach((player: any) => {
+    data.playerData.forEach((player) => {
       rows.push([
         player.name,
         player.email || '',
@@ -134,7 +170,7 @@ function generateCSV(data: any, options: any): string {
   if (options.dataTypes.includes('winners')) {
     if (rows.length > 0) rows.push([]); // Add blank row separator
     headers.push('Winner Place', 'Winner Name', 'Winner Email', 'Win Pattern', 'Claimed At');
-    data.eventInfo.winners.forEach((winner: any) => {
+    data.eventInfo.winners.forEach((winner) => {
       rows.push([
         winner.place,
         winner.name,

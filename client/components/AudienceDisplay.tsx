@@ -309,7 +309,7 @@ export default function AudienceDisplay({ sessionCode, isPresentationMode = true
             {gameState.winners.length > 0 && (
               <div className="space-y-4">
                 <h2 className="heading-3">Winners</h2>
-                {gameState.winners.map((winner: any, index: number) => (
+                {gameState.winners.map((winner: { place: number; userName: string }, index: number) => (
                   <div key={index} className="flex items-center justify-center space-x-4">
                     <Badge variant={winner.place === 1 ? 'primary' : winner.place === 2 ? 'secondary' : 'accent'}>
                       {winner.place === 1 ? '🥇' : winner.place === 2 ? '🥈' : '🥉'} {winner.userName}

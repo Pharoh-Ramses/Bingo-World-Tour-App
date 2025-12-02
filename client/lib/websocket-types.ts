@@ -51,6 +51,7 @@ export interface PlayerInfo {
 export type WSIncomingMessage =
   | { type: 'connected', data: GameSession }
   | { type: 'game-starting', data: { countdownSeconds: number } }
+  | { type: 'game-starting-tick', data: { remainingSeconds: number } }
   | { type: 'game-started', location?: LocationRevealedPayload }
   | { type: 'location-revealed', data: LocationRevealedPayload }
   | { type: 'game-paused' }
@@ -62,6 +63,7 @@ export type WSIncomingMessage =
   | { type: 'player-left', data: { userId: string } }
   | { type: 'player-reconnected', data: PlayerInfo }
   | { type: 'session-updated', data: Partial<GameSession> }
+  | { type: 'analytics-data', data: any }
   | { type: 'connection-lost', message: string }
   | { type: 'sync-request', data: { lastKnownMessageId?: string } }
   | { type: 'error', message: string }
@@ -88,4 +90,5 @@ export interface UseWebSocketReturn {
   send: (message: WSOutgoingMessage) => void
   lastMessage: WSIncomingMessage | null
   error: string | null
+  connectionQuality: 'excellent' | 'good' | 'poor' | 'disconnected'
 }

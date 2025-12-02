@@ -35,7 +35,7 @@ export function useWebSocket({
   const reconnectAttemptsRef = useRef(0)
   const isManualCloseRef = useRef(false)
   const isConnectingRef = useRef(false)
-  const lastKnownStateRef = useRef<any>(null)
+  const lastKnownStateRef = useRef<{ messageId: string; timestamp: number } | null>(null)
   const connectionQualityRef = useRef<'excellent' | 'good' | 'poor' | 'disconnected'>('disconnected')
 
   const getWebSocketUrl = useCallback(() => {

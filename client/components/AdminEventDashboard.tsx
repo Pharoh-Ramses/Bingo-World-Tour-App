@@ -47,7 +47,10 @@ interface EventPacingConfig {
 }
 
 export default function AdminEventDashboard({ sessionCode }: AdminEventDashboardProps) {
-  const { isConnected, lastMessage, send } = useWebSocket(sessionCode, 'admin');
+  const { connectionState, lastMessage, send } = useWebSocket({
+    sessionCode,
+    clientType: 'admin'
+  });
   
   const [analytics, setAnalytics] = useState<EventAnalytics | null>(null);
   const [displayConfig, setDisplayConfig] = useState<AudienceDisplayConfig>({
@@ -103,13 +106,13 @@ export default function AdminEventDashboard({ sessionCode }: AdminEventDashboard
 
   // Request analytics data periodically
   useEffect(() => {
-    if (isConnected) {
+    if (connectionState === 'connected') {
       const interval = setInterval(() => {
         send({ type: "analytics-request" });
       }, 5000); // Update every 5 seconds
       return () => clearInterval(interval);
     }
-  }, [isConnected, send]);
+  }, [connectionState, send]);
 
   const handlePresentationModeToggle = (enabled: boolean) => {
     send({ type: "presentation-mode-toggle", enabled });
@@ -121,8 +124,8 @@ export default function AdminEventDashboard({ sessionCode }: AdminEventDashboard
     send({ type: "audience-display-config", config: newConfig });
   };
 
-  const handlePaceControl = (pace: string, newInterval?: number) => {
-    setPacingConfig(prev => ({ ...prev, currentPace: pace as any, customInterval: newInterval }));
+  const handlePaceControl = (pace: 'normal' | 'fast' | 'slow' | 'dramatic', newInterval?: number) => {
+    setPacingConfig(prev => ({ ...prev, currentPace: pace, customInterval: newInterval }));
     send({ type: "event-pace-control", pace, newInterval });
   };
 
@@ -206,7 +209,7 @@ export default function AdminEventDashboard({ sessionCode }: AdminEventDashboard
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="body-2">Score:</span>
-                <Badge variant={engagementColor as any}>
+                <Badge variant={engagementColor}>
                   {analytics.engagementScore.toFixed(1)}
                 </Badge>
               </div>
@@ -394,7 +397,7 @@ export default function AdminEventDashboard({ sessionCode }: AdminEventDashboard
           />
           <select
             value={messagePriority}
-            onChange={(e) => setMessagePriority(e.target.value as any)}
+            onChange={(e) => setMessagePriority(e.target.value as 'low' | 'medium' | 'high')}
             className="px-3 py-2 border rounded-md"
           >
             <option value="low">Low Priority</option>
@@ -497,8 +500,8 @@ export default function AdminEventDashboard({ sessionCode }: AdminEventDashboard
             <p className="body-1 text-neutral-600">Session: {sessionCode}</p>
           </div>
           <div className="flex items-center space-x-4">
-            <Badge variant={isConnected ? 'success' : 'error'}>
-              {isConnected ? 'Connected' : 'Disconnected'}
+            <Badge variant={connectionState === 'connected' ? 'success' : 'error'}>
+              {connectionState === 'connected' ? 'Connected' : 'Disconnected'}
             </Badge>
             <Button variant="outline" onClick={() => window.open(`/game/${sessionCode}/audience`, '_blank')}>
               Open Audience Display

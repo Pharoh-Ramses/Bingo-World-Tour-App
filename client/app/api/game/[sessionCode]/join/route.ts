@@ -57,17 +57,15 @@ export async function POST(
     }
 
     if (session.status !== 'WAITING') {
+      if (session.status === 'STARTING') {
+        return NextResponse.json(
+          { error: 'Game is starting - please wait and try again', queuePosition: 1 },
+          { status: 429 }
+        )
+      }
       return NextResponse.json(
         { error: 'Session is not accepting new players' },
         { status: 400 }
-      )
-    }
-
-    // Race condition prevention: Check if game is starting
-    if (session.status === 'STARTING') {
-      return NextResponse.json(
-        { error: 'Game is starting - please wait and try again', queuePosition: 1 },
-        { status: 429 }
       )
     }
 

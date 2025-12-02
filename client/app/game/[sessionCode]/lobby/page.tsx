@@ -18,6 +18,7 @@ interface GameSession {
   createdAt: string
   startedAt?: string
   endedAt?: string
+  countdownEndsAt?: string
   players: Array<{
     id: string
     name: string
