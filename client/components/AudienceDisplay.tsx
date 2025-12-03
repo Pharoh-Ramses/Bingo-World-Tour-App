@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { useWebSocket } from "@/lib/useWebSocket";
-import { RevealedLocation } from "@/lib/websocket-types";
+import { RevealedLocation, Winner, LocationRevealedPayload } from "@/lib/websocket-types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -61,12 +62,12 @@ export default function AudienceDisplay({ sessionCode, isPresentationMode = true
   
   const [gameState, setGameState] = useState<{
     status: string;
-    currentLocation: any;
+    currentLocation: LocationRevealedPayload | null;
     revealedLocations: RevealedLocation[];
     playerCount: number;
     currentRevealIndex: number;
     maxReveals: number;
-    winners: any[];
+    winners: Winner[];
   }>({
     status: 'WAITING',
     currentLocation: null,
@@ -97,10 +98,17 @@ export default function AudienceDisplay({ sessionCode, isPresentationMode = true
         break;
 
       case "location-revealed":
+        const revealedLocation: RevealedLocation = {
+          id: lastMessage.data.id,
+          locationId: lastMessage.data.id,
+          locationName: lastMessage.data.name,
+          revealIndex: lastMessage.data.revealIndex,
+          revealedAt: lastMessage.data.revealedAt
+        };
         setGameState(prev => ({
           ...prev,
           currentLocation: lastMessage.data,
-          revealedLocations: [...prev.revealedLocations, lastMessage.data],
+          revealedLocations: [...prev.revealedLocations, revealedLocation],
           currentRevealIndex: prev.currentRevealIndex + 1
         }));
         break;
@@ -208,9 +216,11 @@ export default function AudienceDisplay({ sessionCode, isPresentationMode = true
           </div>
           
           {winner.playerPhoto && (
-            <img
+            <Image
               src={winner.playerPhoto}
               alt={winner.userName}
+              width={128}
+              height={128}
               className="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-white shadow-lg"
             />
           )}
@@ -257,9 +267,11 @@ export default function AudienceDisplay({ sessionCode, isPresentationMode = true
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <div className="flex items-center space-x-6">
           {displayConfig.customBranding?.logo && (
-            <img
+            <Image
               src={displayConfig.customBranding.logo}
               alt="Event Logo"
+              width={200}
+              height={64}
               className="h-16 w-auto"
             />
           )}
@@ -321,10 +333,10 @@ export default function AudienceDisplay({ sessionCode, isPresentationMode = true
             {gameState.winners.length > 0 && (
               <div className="space-y-4">
                 <h2 className="heading-3">Winners</h2>
-                {gameState.winners.map((winner: { place: number; userName: string }, index: number) => (
+                {gameState.winners.map((winner, index: number) => (
                   <div key={index} className="flex items-center justify-center space-x-4">
                     <Badge variant={winner.place === 1 ? 'primary' : winner.place === 2 ? 'secondary' : 'accent'}>
-                      {winner.place === 1 ? '🥇' : winner.place === 2 ? '🥈' : '🥉'} {winner.userName}
+                      {winner.place === 1 ? '🥇' : winner.place === 2 ? '🥈' : '🥉'} Winner {winner.place}
                     </Badge>
                   </div>
                 ))}
@@ -343,9 +355,11 @@ export default function AudienceDisplay({ sessionCode, isPresentationMode = true
               <h2 className="heading-2 text-primary-500 mb-6">Location Revealed!</h2>
               <div className="mb-6">
                 {gameState.currentLocation.imageUrl && (
-                  <img
+                  <Image
                     src={gameState.currentLocation.imageUrl}
                     alt={gameState.currentLocation.name}
+                    width={256}
+                    height={256}
                     className="w-64 h-64 object-cover rounded-lg mx-auto mb-4 shadow-lg"
                   />
                 )}

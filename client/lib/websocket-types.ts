@@ -56,6 +56,9 @@ export type WSIncomingMessage =
   | { type: 'location-revealed', data: LocationRevealedPayload }
   | { type: 'audience-display-updated', data: AudienceDisplayConfig }
   | { type: 'event-pace-updated', data: { pace: 'normal' | 'fast' | 'slow' | 'dramatic'; newInterval?: number } }
+  | { type: 'winner-celebration-start', data: { place: number; winner: { userId: string; userName: string; winPattern: string; winningTime: string; boardCompletion: number; playerPhoto?: string; company?: string; }; celebrationDuration: number } }
+  | { type: 'visual-effect', data: { effect: string; target: string; duration: number; intensity?: string; colors?: string[] } }
+  | { type: 'host-announcement', data: { message: string; priority: string; displayDuration: number } }
   | { type: 'export-ready', data: { downloadUrl: string } }
   | { type: 'export-error', data: { error: string } }
   | { type: 'game-paused' }
