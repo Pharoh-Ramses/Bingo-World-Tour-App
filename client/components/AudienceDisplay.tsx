@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useWebSocket } from "@/lib/useWebSocket";
+import { RevealedLocation } from "@/lib/websocket-types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +47,10 @@ interface VisualEffect {
 }
 
 export default function AudienceDisplay({ sessionCode, isPresentationMode = true }: AudienceDisplayProps) {
-  const { isConnected, lastMessage, send } = useWebSocket(sessionCode, 'audience');
+  const { connectionState, lastMessage, send } = useWebSocket({
+    sessionCode,
+    clientType: 'audience'
+  });
   
   const [displayConfig, setDisplayConfig] = useState<AudienceDisplayConfig>({
     showCurrentLocation: true,
@@ -55,7 +59,15 @@ export default function AudienceDisplay({ sessionCode, isPresentationMode = true
     showTimer: true
   });
   
-  const [gameState, setGameState] = useState({
+  const [gameState, setGameState] = useState<{
+    status: string;
+    currentLocation: any;
+    revealedLocations: RevealedLocation[];
+    playerCount: number;
+    currentRevealIndex: number;
+    maxReveals: number;
+    winners: any[];
+  }>({
     status: 'WAITING',
     currentLocation: null,
     revealedLocations: [],

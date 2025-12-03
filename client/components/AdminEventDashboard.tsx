@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useWebSocket } from "@/lib/useWebSocket";
+import { EventAnalytics, AudienceDisplayConfig, EventPacingConfig } from "@/lib/websocket-types";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,40 +11,6 @@ import { Avatar } from "@/components/ui/avatar";
 
 interface AdminEventDashboardProps {
   sessionCode: string;
-}
-
-interface EventAnalytics {
-  totalPlayers: number;
-  activePlayers: number;
-  tilesMarkedPerMinute: number;
-  averageTimeToMark: number;
-  peakActivityTime: Date;
-  engagementScore: number;
-  startTime: Date;
-  lastActivityTime: Date;
-  currentRevealIndex: number;
-  totalReveals: number;
-  winnersCount: number;
-  averageBoardCompletion: number;
-}
-
-interface AudienceDisplayConfig {
-  showCurrentLocation: boolean;
-  showRevealCount: boolean;
-  showPlayerCount: boolean;
-  showTimer: boolean;
-  customBranding?: {
-    logo: string;
-    eventName: string;
-    sponsorLogo?: string;
-  };
-}
-
-interface EventPacingConfig {
-  dramaticReveal: boolean;
-  countdownDuration: number;
-  currentPace: 'normal' | 'fast' | 'slow' | 'dramatic';
-  customInterval?: number;
 }
 
 export default function AdminEventDashboard({ sessionCode }: AdminEventDashboardProps) {
@@ -370,9 +337,16 @@ export default function AdminEventDashboard({ sessionCode }: AdminEventDashboard
             <label className="body-2 font-medium">Event Name</label>
             <Input
               value={displayConfig.customBranding?.eventName || ''}
-              onChange={(e) => handleAudienceDisplayUpdate({ 
-                customBranding: { ...displayConfig.customBranding, eventName: e.target.value }
-              })}
+              onChange={(e) => {
+                const currentBranding = displayConfig.customBranding;
+                handleAudienceDisplayUpdate({
+                  customBranding: {
+                    logo: currentBranding?.logo || '',
+                    eventName: e.target.value,
+                    sponsorLogo: currentBranding?.sponsorLogo
+                  }
+                });
+              }}
               placeholder="Bingo World Tour"
               className="mt-1"
             />

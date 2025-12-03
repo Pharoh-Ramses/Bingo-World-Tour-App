@@ -54,6 +54,10 @@ export type WSIncomingMessage =
   | { type: 'game-starting-tick', data: { remainingSeconds: number } }
   | { type: 'game-started', location?: LocationRevealedPayload }
   | { type: 'location-revealed', data: LocationRevealedPayload }
+  | { type: 'audience-display-updated', data: AudienceDisplayConfig }
+  | { type: 'event-pace-updated', data: { pace: 'normal' | 'fast' | 'slow' | 'dramatic'; newInterval?: number } }
+  | { type: 'export-ready', data: { downloadUrl: string } }
+  | { type: 'export-error', data: { error: string } }
   | { type: 'game-paused' }
   | { type: 'game-resumed' }
   | { type: 'game-ended' }
@@ -63,7 +67,7 @@ export type WSIncomingMessage =
   | { type: 'player-left', data: { userId: string } }
   | { type: 'player-reconnected', data: PlayerInfo }
   | { type: 'session-updated', data: Partial<GameSession> }
-  | { type: 'analytics-data', data: any }
+  | { type: 'analytics-data', data: EventAnalytics }
   | { type: 'connection-lost', message: string }
   | { type: 'sync-request', data: { lastKnownMessageId?: string } }
   | { type: 'error', message: string }
@@ -80,9 +84,50 @@ export type WSOutgoingMessage =
   | { type: 'request-sync', data: { lastKnownMessageId?: string } }
   | { type: 'mark-ready', isReady: boolean }
   | { type: 'heartbeat' }
+  | { type: 'analytics-request' }
+  | { type: 'audience-display-config', config: AudienceDisplayConfig }
+  | { type: 'event-pace-control', pace: 'normal' | 'fast' | 'slow' | 'dramatic', newInterval?: number }
+  | { type: 'presentation-mode-toggle', enabled: boolean }
+  | { type: 'host-announcement', message: string, priority: 'low' | 'medium' | 'high' }
+  | { type: 'confetti-trigger', options: { intensity: string; duration: number; colors: string[] } }
+  | { type: 'export-data-request', exportOptions: { format: string; dataTypes: string[] } }
 
 // WebSocket connection states
 export type WSConnectionState = 'connecting' | 'connected' | 'disconnected' | 'error'
+
+export interface EventAnalytics {
+  totalPlayers: number;
+  activePlayers: number;
+  tilesMarkedPerMinute: number;
+  averageTimeToMark: number;
+  peakActivityTime: Date;
+  engagementScore: number;
+  startTime: Date;
+  lastActivityTime: Date;
+  currentRevealIndex: number;
+  totalReveals: number;
+  winnersCount: number;
+  averageBoardCompletion: number;
+}
+
+export interface AudienceDisplayConfig {
+  showCurrentLocation: boolean;
+  showRevealCount: boolean;
+  showPlayerCount: boolean;
+  showTimer: boolean;
+  customBranding?: {
+    logo: string;
+    eventName: string;
+    sponsorLogo?: string;
+  };
+}
+
+export interface EventPacingConfig {
+  dramaticReveal: boolean;
+  countdownDuration: number;
+  currentPace: 'normal' | 'fast' | 'slow' | 'dramatic';
+  customInterval?: number;
+}
 
 // WebSocket hook return type
 export interface UseWebSocketReturn {
